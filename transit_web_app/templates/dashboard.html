@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<h2>Admin Dashboard: Insert New Ridership Data</h2>
+<p>Logged in as: <strong>{{ user.username }}</strong> (Role: {{ user.role }})</p>
+
+<form id="ridershipForm">
+    <label for="fact_date">Fact Date (YYYY-MM-DD):</label>
+    <input type="date" id="fact_date" name="fact_date" required><br>
+
+    <label for="arrival_time">Arrival Time (HH:MM:SS):</label>
+    <input type="time" id="arrival_time" name="arrival_time" required><br>
+    
+    <label for="departure_time">Departure Time (HH:MM:SS):</label>
+    <input type="time" id="departure_time" name="departure_time" required><br>
+
+    <label for="route_id">Route ID:</label>
+    <input type="number" id="route_id" name="route_id" required><br>
+
+    <label for="trip_id">Trip ID:</label>
+    <input type="number" id="trip_id" name="trip_id" required><br>
+
+    <label for="bus_id">Bus ID:</label>
+    <select id="bus_id" name="bus_id" required></select><br>
+
+    <label for="driver_id">Driver ID:</label>
+    <select id="driver_id" name="driver_id" required></select><br>
+
+    <label for="ridership_count">Ridership Count:</label>
+    <input type="number" id="ridership_count" name="ridership_count" required><br>
+
+    <label for="avg_delay_min">Avg Delay (min):</label>
+    <input type="number" step="0.01" id="avg_delay_min" name="avg_delay_min" required><br>
+
+    <label for="weather_code">Weather Code:</label>
+    <input type="number" id="weather_code" name="weather_code" required><br>
+
+    <label for="fare_collected">Fare Collected ($):</label>
+    <input type="number" step="0.01" id="fare_collected" name="fare_collected" required><br>
+
+
+    <!-- Hidden fields -->
+    <input type="hidden" id="avg_wait_time_min" name="avg_wait_time_min" value="0.0">
+    
+
+    <button type="submit">Insert Ridership Record</button>
+</form>
+
+<p id="insert-message" style="margin-top:10px; font-weight:bold;"></p>
+
+<h3>Recent Ridership Records</h3>
+<table id="busTable" border="1">
+    <thead>
+        <tr>
+            <th>Fact Date</th>
+
+            <th>Arrival Time</th>
+
+            <th>Departure Time</th>
+
+            <th>Route ID</th>
+
+            <th>Trip ID</th>
+
+            <th>Route Name</th>
+
+            <th>Ridership Count</th>
+
+            <th>Avg Wait</th>
+
+            <th>Avg Delay</th>
+
+            <th>Fare Collected</th>
+
+            <th>Weather</th>
+
+            <th>Bus ID</th>
+
+            <th>Driver ID</th>
+        </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<canvas id="chart" style="height: 300px; margin-top: 20px;"></canvas>
+
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
