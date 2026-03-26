@@ -118,7 +118,7 @@ ADD COLUMN arrival_time_raw VARCHAR(20),
 ADD COLUMN departure_time_raw VARCHAR(20);
 #2 - Load the times into stage_ltc
 SET GLOBAL local_infile = 1;
-LOAD DATA LOCAL INFILE 'C:/Users/Akshay/Downloads/times.csv'
+LOAD DATA LOCAL INFILE 'C:/Users/Asus/Downloads/times.csv'
 INTO TABLE stage_ltc
 FIELDS TERMINATED BY ',' 
 LINES TERMINATED BY '\n'
@@ -129,6 +129,7 @@ ALTER TABLE stage_ltc
 ADD COLUMN arrival_time TIME NULL,
 ADD COLUMN departure_time TIME NULL;
 #4 - Convert text time values (arrival_time_raw, departure_time_raw) into proper MySQL TIME format
+SET SQL_SAFE_UPDATES = 0;
 UPDATE stage_ltc
 SET arrival_time = STR_TO_DATE(arrival_time_raw, '%r'),
     departure_time = STR_TO_DATE(departure_time_raw, '%r');
@@ -166,6 +167,10 @@ ALTER TABLE stage_ltc
 DROP COLUMN arrival_time_raw,
 DROP COLUMN departure_time_raw;
 #13 - Populate final arrival_time & departure_time into TRIP table (matching on trip_id)
+ALTER TABLE trip
+ADD COLUMN arrival_time TIME NULL,
+ADD COLUMN departure_time TIME NULL;
+
 UPDATE trip t
 JOIN stage_ltc s ON t.trip_id = s.trip_id
 SET t.arrival_time = s.arrival_time,
@@ -185,10 +190,3 @@ SET t.arrival_time = s.arrival_time,
 SELECT *
 FROM trip
 LIMIT 20;
-
-
-
-
-
-
-
