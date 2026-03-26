@@ -116,8 +116,8 @@ CREATE TABLE stage_ltc (
 #Step 5 - Load data into stage_ltc
 SET GLOBAL local_infile = 1;
 
-LOAD DATA LOCAL INFILE
-  'C:/Users/Akshay/Downloads/google_transit - Copy/London_Transit_Ridership_Expanded.csv'
+LOAD DATA INFILE
+  '/docker-entrypoint-initdb.d/Data.csv'
 INTO TABLE stage_ltc
 FIELDS TERMINATED BY ',' ENCLOSED BY '"'
 LINES TERMINATED BY '\n'
@@ -126,11 +126,11 @@ IGNORE 1 LINES;
 #Step 6 - Load parent tables first (key mapping / transformation)
 #Order: agency → weather → bus → driver → route → service → trip → ridership_fact
 #6.1: Agency
-INSERT INTO agency (agency_name)
+INSERT IGNORE INTO agency (agency_name)
 SELECT DISTINCT agency_name
 FROM stage_ltc
 WHERE agency_name IS NOT NULL
-ON DUPLICATE KEY UPDATE agency_name = VALUES(agency_name);
+ON DUPLICATE KEY UPDATE agency.agency_name = agency.agency_name;
 
 #6.2: Weather
 INSERT INTO weather (weather_code, weather_label)
@@ -140,36 +140,46 @@ VALUES
   (3,'Rain'),
   (4,'Snow'),
   (5,'Windy')
-ON DUPLICATE KEY UPDATE weather_label = VALUES(weather_label);
+ON DUPLICATE KEY UPDATE weather.weather_label = weather.weather_label;
 
 #6.3: Bus and Driver
 INSERT IGNORE INTO bus (bus_id)
-SELECT DISTINCT bus_id
-FROM stage_ltc
-WHERE bus_id IS NOT NULL AND bus_id <> '';
+SELECT DISTINCT TRIM(s.bus_id)
+FROM stage_ltc s
+WHERE s.bus_id IS NOT NULL
+  AND s.bus_id <> ''
+  AND TRIM(s.bus_id) NOT IN (SELECT bus_id FROM bus);
 
+-- Insert new drivers
 INSERT IGNORE INTO driver (driver_id)
-SELECT DISTINCT driver_id
-FROM stage_ltc
-WHERE driver_id IS NOT NULL AND driver_id <> '';
+SELECT DISTINCT TRIM(s.driver_id)
+FROM stage_ltc s
+WHERE s.driver_id IS NOT NULL
+  AND s.driver_id <> ''
+  AND TRIM(s.driver_id) NOT IN (SELECT driver_id FROM driver);
+
 
 #6.4: Route
 INSERT INTO route (route_id, agency_id, route_short_name, route_long_name, route_desc, route_type)
-SELECT DISTINCT
-  s.route_id,
-  a.agency_id,
-  s.route_short_name,
-  s.route_long_name,
-  s.route_desc,
-  s.route_type
-FROM stage_ltc s
-JOIN agency a ON a.agency_name = s.agency_name
-WHERE s.route_id IS NOT NULL
+SELECT *
+FROM (
+    SELECT DISTINCT
+      s.route_id,
+      a.agency_id,
+      s.route_short_name,
+      s.route_long_name,
+      s.route_desc,
+      s.route_type
+    FROM stage_ltc s
+    JOIN agency a ON a.agency_name = s.agency_name
+    WHERE s.route_id IS NOT NULL
+) AS new_data
 ON DUPLICATE KEY UPDATE
-  route_short_name = VALUES(route_short_name),
-  route_long_name  = VALUES(route_long_name),
-  route_desc       = VALUES(route_desc),
-  route_type       = VALUES(route_type);
+  route_short_name = new_data.route_short_name,
+  route_long_name  = new_data.route_long_name,
+  route_desc       = new_data.route_desc,
+  route_type       = new_data.route_type;
+
 
 #6.5: Service
 INSERT INTO service (service_id, service_date, weekday, weekend)
@@ -188,21 +198,25 @@ ON DUPLICATE KEY UPDATE
 
 #6.6: Trip
 INSERT INTO trip (trip_id, route_id, service_id, trip_headsign, direction_id, wheelchair_accessible)
-SELECT DISTINCT
-  trip_id,
-  route_id,
-  service_id,
-  trip_headsign,
-  direction_id,
-  wheelchair_accessible
-FROM stage_ltc
-WHERE trip_id IS NOT NULL
+SELECT *
+FROM (
+    SELECT DISTINCT
+        trip_id,
+        route_id,
+        service_id,
+        trip_headsign,
+        direction_id,
+        wheelchair_accessible
+    FROM stage_ltc
+    WHERE trip_id IS NOT NULL
+) AS new_data
 ON DUPLICATE KEY UPDATE
-  route_id             = VALUES(route_id),
-  service_id           = VALUES(service_id),
-  trip_headsign        = VALUES(trip_headsign),
-  direction_id         = VALUES(direction_id),
-  wheelchair_accessible= VALUES(wheelchair_accessible);
+    route_id             = new_data.route_id,
+    service_id           = new_data.service_id,
+    trip_headsign        = new_data.trip_headsign,
+    direction_id         = new_data.direction_id,
+    wheelchair_accessible= new_data.wheelchair_accessible;
+
 
 #Step 7 - Load child table:ridership_fact
 INSERT INTO ridership_fact
@@ -210,34 +224,115 @@ INSERT INTO ridership_fact
    weekday, weekend,
    ridership_count, avg_wait_time_min, avg_delay_min, fare_collected,
    weather_code, bus_id, driver_id)
-SELECT
-  s.date                  AS fact_date,
-  s.trip_id,
-  s.service_id,
-  s.route_id,
-  s.weekday,
-  s.weekend,
-  s.ridership_count,
-  s.avg_wait_time_min,
-  s.avg_delay_min,
-  s.fare_collected,
-  CASE s.weather_condition
-    WHEN 'Sunny'  THEN 1
-    WHEN 'Cloudy' THEN 2
-    WHEN 'Rain'   THEN 3
-    WHEN 'Snow'   THEN 4
-    WHEN 'Windy'  THEN 5
-    ELSE NULL
-  END AS weather_code,
-  s.bus_id,
-  s.driver_id
-FROM stage_ltc s
-JOIN trip t ON t.trip_id = s.trip_id
+SELECT *
+FROM (
+    SELECT
+      s.date                  AS fact_date,
+      s.trip_id,
+      s.service_id,
+      s.route_id,
+      s.weekday,
+      s.weekend,
+      s.ridership_count,
+      s.avg_wait_time_min,
+      s.avg_delay_min,
+      s.fare_collected,
+      CASE s.weather_condition
+        WHEN 'Sunny'  THEN 1
+        WHEN 'Cloudy' THEN 2
+        WHEN 'Rain'   THEN 3
+        WHEN 'Snow'   THEN 4
+        WHEN 'Windy'  THEN 5
+        ELSE NULL
+      END AS weather_code,
+      s.bus_id,
+      s.driver_id
+    FROM stage_ltc s
+    JOIN trip t ON t.trip_id = s.trip_id
+) AS new_data
 ON DUPLICATE KEY UPDATE
-  ridership_count   = VALUES(ridership_count),
-  avg_wait_time_min = VALUES(avg_wait_time_min),
-  avg_delay_min     = VALUES(avg_delay_min),
-  fare_collected    = VALUES(fare_collected),
-  weather_code      = VALUES(weather_code),
-  bus_id            = VALUES(bus_id),
-  driver_id         = VALUES(driver_id);
+  ridership_count   = new_data.ridership_count,
+  avg_wait_time_min = new_data.avg_wait_time_min,
+  avg_delay_min     = new_data.avg_delay_min,
+  fare_collected    = new_data.fare_collected,
+  weather_code      = new_data.weather_code,
+  bus_id            = new_data.bus_id,
+  driver_id         = new_data.driver_id;
+
+  SHOW Tables;
+  DESCRIBE agency;
+DESCRIBE bus;
+DESCRIBE driver;
+DESCRIBE ridership_fact;
+DESCRIBE route;
+DESCRIBE service;
+DESCRIBE stage_ltc;
+DESCRIBE trip;
+DESCRIBE weather;
+SELECT * FROM bus LIMIT 10;
+-- SQL to create the users table for Flask-Login authentication
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(80) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL, -- Stores the secure hash
+    role ENUM('user', 'admin') NOT NULL DEFAULT 'user'
+);
+-- SQL to insert the first admin user
+-- REPLACE 'PASTE_YOUR_COPIED_HASH_HERE' with the output from Python
+INSERT INTO users (username, password_hash, role) 
+VALUES ('admin', 'PASTE_YOUR_COPIED_HASH_HERE', 'admin');
+-- Replace 'YOUR_FRESH_HASH_FROM_STEP_1' with the string you just copied.
+
+UPDATE users 
+SET password_hash = 'admin_password' 
+WHERE username = 'admin';
+
+-- Save the change
+COMMIT;
+DESCRIBE users;
+SELECT * FROM users LIMIT 10;
+UPDATE users
+SET password_hash = 'scrypt:32768:8:1$cSjjofIyejSKPEkf$0594c224f0fdc4459ce61401bd35705675f1e57b9ee822f841eb114fc317d8c3f1811a86f806bc10ea1242fa6d08fac24b6096b8ae5ddd04c980827e16668772'
+WHERE username = 'admin';
+SELECT * FROM ridership_fact LIMIT 10;
+SELECT trip_id FROM trip LIMIT 20;
+SELECT * FROM service;
+SHOW CREATE TABLE service;
+SHOW CREATE TABLE ridership_fact;
+SELECT * FROM trip LIMIT 5;
+SELECT * FROM route LIMIT 10;ridership_fact
+SELECT * FROM weather LIMIT 5;
+SELECT * FROM driver LIMIT 5;
+SELECT * FROM bus LIMIT 5;
+SELECT service_id FROM service WHERE service_id = '1';
+SELECT service_id FROM service WHERE service_id = '1';
+INSERT INTO service (service_id, service_name) VALUES ('1', 'Default Service');
+SELECT CONCAT('*', service_id, '*') AS check_value FROM service;
+ALTER TABLE ridership_fact MODIFY service_id VARCHAR(255) NULL;
+SELECT * 
+FROM ridership_fact
+ORDER BY fact_date DESC, trip_id DESC
+LIMIT 10;
+SELECT * FROM ridership_fact ORDER BY fact_date DESC LIMIT 5;
+SELECT * FROM service WHERE service_id = '3302';
+SELECT * FROM trip WHERE trip_id = '2235257';
+UPDATE users 
+SET password_hash = 'ashwini123' 
+WHERE username = 'ashwini';
+UPDATE users 
+SET password_hash = 'ashu123' 
+WHERE username = 'ashu';
+ALTER TABLE ridership_fact
+ADD COLUMN trip_time TIME;
+SELECT * FROM ridership_fact LIMIT 10;
+ALTER TABLE trip
+ADD COLUMN arrival_time TIME NULL,
+ADD COLUMN departure_time TIME NULL;
+
+SELECT *
+FROM trip
+LIMIT 20;
+ALTER TABLE trip
+DROP COLUMN arrival_time,
+DROP COLUMN departure_time;
+SELECT * FROM stage_ltc LIMIT 5;
