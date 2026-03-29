@@ -4,7 +4,7 @@
 DB_CONFIG = {
     'host': 'localhost',  
     'user': 'root',            
-    'password': 'Labhijakshrahate02@', 
+    'password': 'root', 
     'database': 'ltc_transit'   ,
 }
 

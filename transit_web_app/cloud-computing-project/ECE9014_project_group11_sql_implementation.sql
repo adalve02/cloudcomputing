@@ -300,15 +300,14 @@ SELECT * FROM service;
 SHOW CREATE TABLE service;
 SHOW CREATE TABLE ridership_fact;
 SELECT * FROM trip LIMIT 5;
-SELECT * FROM route LIMIT 10;ridership_fact
+SELECT * FROM route LIMIT 10;
 SELECT * FROM weather LIMIT 5;
 SELECT * FROM driver LIMIT 5;
 SELECT * FROM bus LIMIT 5;
 SELECT service_id FROM service WHERE service_id = '1';
 SELECT service_id FROM service WHERE service_id = '1';
-INSERT INTO service (service_id, service_name) VALUES ('1', 'Default Service');
+INSERT INTO service (service_id, service_date) VALUES (2,NOW());
 SELECT CONCAT('*', service_id, '*') AS check_value FROM service;
-ALTER TABLE ridership_fact MODIFY service_id VARCHAR(255) NULL;
 SELECT * 
 FROM ridership_fact
 ORDER BY fact_date DESC, trip_id DESC
@@ -337,9 +336,6 @@ DROP COLUMN arrival_time,
 DROP COLUMN departure_time;
 SELECT * FROM stage_ltc LIMIT 5;
 
-
-
------2ndfile-------
 SELECT * FROM agency;
 SELECT * FROM weather;
 SELECT * FROM bus;
@@ -460,7 +456,7 @@ ADD COLUMN arrival_time_raw VARCHAR(20),
 ADD COLUMN departure_time_raw VARCHAR(20);
 #2 - Load the times into stage_ltc
 SET GLOBAL local_infile = 1;
-LOAD DATA LOCAL INFILE 'C:/Users/Asus/Downloads/times.csv'
+LOAD DATA INFILE '/docker-entrypoint-initdb.d/times.csv'
 INTO TABLE stage_ltc
 FIELDS TERMINATED BY ',' 
 LINES TERMINATED BY '\n'

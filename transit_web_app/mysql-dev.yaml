@@ -1,0 +1,45 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        args:
+          - --local-infile=1
+          - --secure-file-priv=
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: root
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+          - name: initdb-volume
+            mountPath: /docker-entrypoint-initdb.d
+      volumes:
+      - name: initdb-volume
+        configMap:
+          name: mysql-dev
+      # nodeSelector:
+      #   kubernetes.io/hostname: gke-dev-cluster-default-pool-bc2d69e4-j15v
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service
+spec:
+  selector:
+    app: mysql
+  ports:
+  - port: 3306

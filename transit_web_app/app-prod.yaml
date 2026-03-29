@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transit-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: transit
+  template:
+    metadata:
+      labels:
+        app: transit
+    spec:
+      containers:
+        - name: app
+          image: northamerica-northeast2-docker.pkg.dev/ece-9016-final-projects/my-repo/transitapp:v4
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+          env:
+            - name: DB_HOST
+              value: mysql-service
+            - name: DB_USER
+              value: root
+            - name: DB_PASSWORD
+              value: root
+            - name: DB_NAME
+              value: ltc_transit
+      nodeSelector:
+        role: web
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: transit-service-prod
+spec:
+  type: LoadBalancer
+  selector:
+    app: transit
+  ports:
+    - port: 80
+      targetPort: 5000
